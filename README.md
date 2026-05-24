@@ -185,6 +185,7 @@ python3 -m experiments.exp_agent_evolution
 ## 5. 做了哪些测试（实验全表）
 
 > 全部实跑于 **MatrixOne v3.0.11**，每个脚本**自建库 → 跑 → 清理**，可独立重复运行。
+> 每个实验的**设计理由 / 测试点 / MatrixOne 能力价值**逐条说明见 **[EXPERIMENTS.md](EXPERIMENTS.md)**。
 
 | 脚本 | 验证的能力 | 关键实测结果 | 依赖 |
 |---|---|---|---|
