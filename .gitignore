@@ -1,0 +1,14 @@
+# secrets / connection configs
+.mo.cnf
+.lakefs.env
+*.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# demo artifacts
+artifacts/
+*.log

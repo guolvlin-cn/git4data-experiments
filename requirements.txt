@@ -1,0 +1,5 @@
+scikit-learn>=1.3
+numpy>=1.24
+pymysql>=1.1
+lakefs>=0.16
+boto3>=1.28
