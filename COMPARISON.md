@@ -606,3 +606,43 @@ cherry-pick + 快照/PITR** 把它们一一对上了。要点与边界：
   自建一层（或接 Feast 这类把 MatrixOne 当 offline+online store 的开源框架）。
 - **最佳形态**：**MatrixOne 当「存储 + 版本 + PIT 引擎」后端，上面薄薄一层特征定义/编排/监控**；
   对中小规模或已重度用数据库的团队，这套比引入完整 Tecton 平台更轻、且自带可复现的特征版本治理。
+
+### 13.5 校正：feature 最重要的能力排序，以及「版本化」的真实定位
+（早先 §13 把 git4data 版本化抬得偏高，这里据行业实践校正。）
+
+**按重要性排序**：
+1. **Point-in-time 正确性**——feature store 存在的根本理由（防泄漏/防 train-serve skew）。
+2. **低延迟在线服务 + online/offline 一致性**——区别于「直接查数仓」的关键（Tecton sub-10ms p99）。
+3. **特征复用 / 发现 / 治理（registry）**——组织级价值：定义一次、多团队多模型复用、口径统一。
+4. **新鲜度 / 物化编排**——batch+stream 物化、backfill、freshness SLA。
+5. **变换管理**——声明式定义 batch/stream/on-demand，训练与服务同一套逻辑。
+6. **监控**——特征漂移 / 质量 / 新鲜度 / 服务指标。
+7. **版本化 / 血缘（可复现）**——重要，但属第二梯队，且很大一部分已被下面两机制覆盖。
+
+**「版本化」到底重不重要？——重要，但不是头号，且大部分特征*值*版本化已被覆盖**：
+- (a) **时间轴本身**：特征值带时间戳 + PIT as-of join，本就能「取任意时刻的特征值」——这已是一种版本化，不必显式 snapshot/branch。
+- (b) **lakehouse 表格式**：Hopsworks 用 **Hudi**、Databricks 用 **Delta**、SageMaker 用 **Iceberg**，都自带 time-travel + commit log + 行级变更追踪。「特征数据版本化」是成熟能力，**不是 git4data 独有**（Hopsworks 甚至以「Versioned Feature Data with a Lakehouse」为卖点）。
+
+git4data 在版本化上真正的**增量价值**，集中在时间轴/lakehouse 覆盖不到的三点：
+1. **特征定义变更的版本化**：同一时刻 T，「7d 定义算的值」vs「14d 定义算的值」时间轴区分不了；snapshot/branch 能把「定义版本→物化值」钉住并行级 diff。
+2. **数据修正下的复现**：PIT join 复现的是「按*当前*数据 as-of T」；若事后修正了历史 raw 数据，as-of join 会返回修正后的值。要「按数据集版本 bit 级复现、不受后续修正影响」需 snapshot——两种不同的复现语义。
+3. **分支式特征工程实验 + 行级 diff/merge/cherry-pick**：比 Delta/Hudi 快照、Iceberg 分支更细。
+
+### 13.6 更广的 feature store 产品对比
+| 产品 | 类型 | 在线服务 | PIT | 物化 | 特征值版本化机制 |
+|---|---|---|---|---|---|
+| **Tecton** | 托管平台 | sub-10ms p99 | ✅ | batch+stream+on-demand（强） | 定义走代码/git；值版本化弱 |
+| **Feast** | 开源轻量 | BYO(Redis/DynamoDB) | ✅ | 弱（主要 BYO 物化） | 靠底层 store；**可把 MatrixOne 当 offline+online store** |
+| **Hopsworks** | 开源+托管平台 | RonDB（低延迟） | ✅ | batch+stream | **Hudi**：time-travel + commit log + 行级变更（版本化最强之一） |
+| **Databricks FS** | 平台 | DynamoDB/Cosmos | ✅ | batch(+DLT 流) | **Delta** time-travel + Unity Catalog 血缘 |
+| **SageMaker FS** | 托管 | ~10–25ms p99 | ✅ | batch | offline 用 **Iceberg/S3** time-travel |
+| **Vertex AI FS** | 托管 | Bigtable(~10ms) | ✅ | batch | BigQuery 底座 |
+| **Featureform** | 虚拟/元数据层 | 编排已有设施 | 依赖底层 | 依赖底层 | 依赖底层 |
+| **MatrixOne+git4data** | HTAP 数据库（作后端） | 同库点查 | ✅(SQL) | SQL/INSERT…SELECT（编排需自建） | **行级 DIFF/MERGE/PICK + 快照 + 每事务 PITR**（比 Delta/Hudi 更细） |
+
+**洞察**：主流 feature store 的「特征值版本化」普遍靠 **lakehouse 格式（Hudi/Delta/Iceberg）**拿到，
+所以 MatrixOne git4data 在版本化维度**对标的是它们的 time-travel**——差异在**行级 diff/merge/
+cherry-pick 更细 + 每事务 PITR 时间粒度更细 + HTAP 单存储 online/offline 合一**。但要成为 feature
+store，**真正缺的不是版本化，而是上面那层平台能力**（声明式定义、托管物化编排、在线服务 SLA、
+注册表治理、监控）——这正是 Tecton/Hopsworks 的强项。**所以 git4data 版本化是「锦上添花的差异点」，
+不是选型首要标准**。
