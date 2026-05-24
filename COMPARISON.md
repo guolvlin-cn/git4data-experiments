@@ -1,8 +1,10 @@
 # lakeFS vs MatrixOne git4data —— 面向 ML「持续流入 + 持续学习」场景的能力对比
 
+> 这是**深度报告**；想按教程动手上手，请先看 **[README.md](README.md)**。
+
 > 本报告基于本仓库两个**可运行 demo** 的实测结论：
-> - `matrixone/run_demo.py` —— 实跑于 MatrixOne Cloud `v3.0.11`（杭州 freetier）
-> - `lakefs_demo/run_demo.py` —— lakeFS server（Docker）+ 阿里云 OSS blockstore
+> - `matrixone/run_demo.py` —— 实跑于 MatrixOne Cloud `v3.0.11`
+> - `lakefs_demo/run_demo.py` —— lakeFS server（Docker）+ OSS blockstore（S3 兼容）
 >
 > 两个 demo 使用**完全相同**的数据生成器（`common/data_stream.py`）、增量模型
 > （`common/model.py`，`SGDClassifier.partial_fit`）和五幕剧情，因此精度数字
