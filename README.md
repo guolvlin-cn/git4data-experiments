@@ -1,4 +1,4 @@
-# git4data 实验教程：用 14 个实验学会并评估 MatrixOne 的「数据版本控制」能力
+# git4data 实验教程：用 15 个实验学会并评估 MatrixOne 的「数据版本控制」能力
 
 > 一份**动手教程**：通过一组**可独立重跑、自清理**的实验，系统学习 MatrixOne
 > **git4data**（快照 / 时间旅行 / 克隆 / 回滚 / PITR / `DATA BRANCH` 分支·diff·merge·
@@ -154,11 +154,23 @@ python3 -m experiments.exp_bench_curation     # 正面基准：MatrixOne 原地 
 
 ### 第 5 课 — 组合使用：lakeFS + MatrixOne
 ```bash
-python3 -m experiments.exp_integration_poc    # 需 OSS + lakeFS
+python3 -m experiments.exp_integration_poc       # 集成原理（最小版，需 OSS + lakeFS）
+python3 -m experiments.exp_multimodal_pipeline   # 端到端持续迭代流水线（capstone，需 OSS + lakeFS）
 ```
-**会看到**：lakeFS 提交图像字节(C1)→ MatrixOne 目录 pin C1 → 快照 `dataset_v1`；字节改变→lakeFS
-C2 → 目录 pin C2 → `dataset_v2`。**把目录解析到 v1 读回旧字节、解析到 v2 读回新字节**——
-字节级时间旅行由「lakeFS 存字节 + MatrixOne 目录 pin commit」组合达成（两者单独都做不到）。
+**集成原理（`exp_integration_poc`）**：lakeFS 提交图像字节(C1)→ MatrixOne 目录 pin C1 → 快照
+`dataset_v1`；字节改变→lakeFS C2 → 目录 pin C2 → `dataset_v2`。**把目录解析到 v1 读回旧字节、
+解析到 v2 读回新字节**——字节级时间旅行由「lakeFS 存字节 + MatrixOne 目录 pin commit」组合
+达成（两者单独都做不到）。
+
+**端到端流水线（`exp_multimodal_pipeline`，capstone）**：把上面原理跑成一条**持续迭代**的
+多模态「版本化 + 打标 + 训练」流水线，4 轮迭代：
+- R1 原始数据落 lakeFS(commit) → MatrixOne 编目+打标 → 快照=数据集版本 → 训练+注册模型；
+- R2 新数据持续流入 → 新 commit，`DATA BRANCH DIFF` 显示新增了哪些资产；
+- R3 在分支上**修正噪声标签** → diff → merge（acc 0.868→0.904）；
+- R4 某资产**原始字节重导出** → 新 lakeFS commit → 目录重新 pin。
+**会看到**：每个模型版本都 pin 住（catalog 快照 + lakeFS commit）；可**精确复现**任一历史模型；
+asset#5 在 v2/v4 解析到不同 lakeFS commit 读回**不同字节**；最后打印完整血缘谱系
+（model → catalog 快照 → lakeFS commit → acc）。
 
 ### 第 6 课 — 非 ML：用 branching 让 Agent 进化
 ```bash
@@ -191,6 +203,7 @@ python3 -m experiments.exp_agent_evolution
 | `exp_stage_datalink.py` | 非结构化引用 | stage+datalink+`load_file`；**只版本引用非字节**；DIFF OUTPUT FILE→SQL 补丁 | MatrixOne+OSS |
 | `exp_bench_curation.py` | 正面性能基准 | 同份策展：lakeFS+DuckDB 更快（225/383ms vs 585/1961ms）——MO 强在集成非速度 | MatrixOne+OSS+DuckDB |
 | `exp_integration_poc.py` | lakeFS×MatrixOne 集成 | 目录 pin lakeFS commit → 字节级时间旅行 + 行级"改了啥" + 可直读 URL | lakeFS+MatrixOne+OSS |
+| `exp_multimodal_pipeline.py` | **端到端 capstone**：多模态版本化+打标+训练+持续迭代 | 4 轮：落 lakeFS→编目打标→训练→注册；新数据/清洗标签/重导出字节各自版本化；m2 精确复现；字节级血缘 | lakeFS+MatrixOne+OSS |
 | `exp_agent_evolution.py` | 非 ML：Agent 进化 | branch 进化 50%→100%；RESTORE 回滚；冲突裁决；cherry-pick 技能 | MatrixOne |
 
 ---
@@ -252,7 +265,7 @@ common/          共享：合成数据流(data_stream) + 增量模型(model, SGD
 config.py        领域常量 + 从 .mo.cnf 读 MatrixOne 连接
 matrixone/       git4data 实现：mo_client / git4data(原语封装) / repo / run_demo
 lakefs_demo/     lakeFS 实现：lk_config / start_lakefs.sh / run_demo
-experiments/     14 个可独立重跑、自清理的实验脚本（见第 5 节）
+experiments/     15 个可独立重跑、自清理的实验脚本（见第 5 节）
 COMPARISON.md    深度报告（§1-12：能力对比/ML场景/性能基准/集成/平台架构/Agent进化）
 README.md        本教程
 ```
