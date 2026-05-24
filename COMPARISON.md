@@ -569,3 +569,40 @@ cherry-pick + 快照/PITR** 把它们一一对上了。要点与边界：
 - agent 产生的**大块原始 trace/产物**（长对话、图像、网页快照）仍建议走 §8/§11 的组合：
   字节放 lakeFS、结构化 trace/索引/打分放 MatrixOne，目录记 lakeFS commit 串血缘；
 - 真实落地时 agent 的"成功/奖励"信号来自真实评测而非模拟器，但版本控制层的玩法不变。
+
+---
+
+## 13. Feature Store 场景：MatrixOne 作后端 + git4data 特征版本化，对比 Tecton
+
+### 13.1 Feature store 的核心职责
+1. **特征变换 + 物化**：定义 raw→feature 的转换（batch/stream/on-demand），把特征值物化下来；
+2. **point-in-time 正确的训练集生成**：对每个 label 事件（时刻 T），取**截至 T**的特征值（防泄漏/防 train-serve skew）——这是 feature store 的灵魂；
+3. **在线 + 离线服务**：online（低延迟取最新值）+ offline（全历史用于训练）；
+4. **特征定义/值的版本化与持续迭代**。
+
+### 13.2 Tecton（事实标准）画像
+托管特征**平台**：声明式 FeatureView（Python/SQL）→ 托管的批/流/按需**物化**；**双存储**
+（offline=S3/数仓，online=DynamoDB/Redis，需保证两边一致）；`get_historical_features` 做
+**PIT time-travel join** 生成训练集；生产级在线服务 + **新鲜度 SLA/监控**；特征**定义**版本走
+代码/git；多源 connector 生态。（开源对应物是 Feast。）
+
+### 13.3 MatrixOne 作后端的契合度（`exp_feature_store.py` 实测）
+| 能力 | MatrixOne 怎么做（实测） | Tecton |
+|---|---|---|
+| 特征物化 | SQL 聚合 `INSERT…SELECT`（滚动窗口）；增量物化只算新 asof 点 | 托管 Spark/流式物化 |
+| **PIT 正确训练集** | `ROW_NUMBER() … asof_day<=label_day` 的 as-of join——实测无泄漏（user0@day12 取 as-of cnt=2 而非最新 11） | `get_historical_features` |
+| online + offline | **同一 HTAP 表**：最新值点查(~19ms) + 全历史 PIT join——**无双存储 skew** | 两套存储，需维护一致 |
+| 特征**值**版本化 | **git4data 快照** = 每次特征发布；可时间旅行复现某版训练集 | 不强调（版本化的是定义） |
+| 改特征定义 | 分支上 in-place 重算 → `DATA BRANCH DIFF`（实测 7d→14d 改了 **120** 行）→ `MERGE` | 改代码 → 重新物化 |
+| 任意时点 | `PITR` 恢复到任意时刻 | 离散物化点 |
+
+### 13.4 结论
+- **MatrixOne 能胜任 feature store 的「后端」**：PIT join / 物化 / online+offline / 持续迭代
+  都能用 SQL 在一处完成；且 **git4data 给特征版本化带来 Tecton 数据层没有的能力**——
+  特征值按发布快照、分支做特征工程实验并行级 diff/merge、PITR 任意时点、每次训练 pin 一版可复现。
+- **HTAP 单存储**天然消除 Tecton 双存储的 online/offline 一致性难题。
+- **MatrixOne 的 gap（它是数据库不是特征平台）**：没有声明式特征定义框架、没有托管的流式/
+  按需物化与编排、没有内置在线服务 SLA/监控/新鲜度、没有多源 connector 生态——这些要在上面
+  自建一层（或接 Feast 这类把 MatrixOne 当 offline+online store 的开源框架）。
+- **最佳形态**：**MatrixOne 当「存储 + 版本 + PIT 引擎」后端，上面薄薄一层特征定义/编排/监控**；
+  对中小规模或已重度用数据库的团队，这套比引入完整 Tecton 平台更轻、且自带可复现的特征版本治理。

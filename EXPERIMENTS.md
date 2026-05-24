@@ -66,6 +66,11 @@
 - **测试点**：SQL 聚合算共识、`WHERE` 筛争议、`PICK` 改判、按训练运行 pin 快照能否串成闭环。
 - **能力价值**：**标注一致性是 SQL 聚合、争议是一个 WHERE、改判是 cherry-pick、每次训练 pin 快照可复现**——把偏好数据治理变成库内可版本化工作流。
 
+### `exp_feature_store.py` — Feature Store 后端 + git4data 特征版本化（对比 Tecton）
+- **设计理由**：feature store 是 ML 平台标配；看 MatrixOne 能否当其后端，并对比事实标准 Tecton。
+- **测试点**：① point-in-time 正确的 as-of join（核心，防泄漏）；② 滚动特征物化；③ online(最新值点查)+offline(全历史) 同一 HTAP 表；④ 分支改特征定义(7d→14d)行级 `DIFF`/`MERGE`、快照=特征发布、PITR。
+- **能力价值**：PIT join 就是一段 SQL（实测无泄漏）；**HTAP 单存储消除 Tecton 双存储(offline S3 + online DynamoDB)的一致性难题**；**git4data 版本化*物化特征值*——Tecton（只版本化特征*定义*）在数据层没有的**：每次训练 pin 一版可复现、分支做特征工程实验并行级 diff(实测 7d→14d 改 120 行)、PITR 回到任意特征状态。边界：MatrixOne 是数据库非特征平台，缺声明式特征框架/托管物化编排/在线 SLA——最佳是「MO 当后端 + 薄特征层」。
+
 ---
 
 ## D. 边界与诚实对比

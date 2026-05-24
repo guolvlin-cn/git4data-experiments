@@ -1,4 +1,4 @@
-# git4data 实验教程：用 15 个实验学会并评估 MatrixOne 的「数据版本控制」能力
+# git4data 实验教程：用 16 个实验学会并评估 MatrixOne 的「数据版本控制」能力
 
 > 一份**动手教程**：通过一组**可独立重跑、自清理**的实验，系统学习 MatrixOne
 > **git4data**（快照 / 时间旅行 / 克隆 / 回滚 / PITR / `DATA BRANCH` 分支·diff·merge·
@@ -139,6 +139,7 @@ python3 -m experiments.exp_write_audit_publish    # WAP：写暂存分支→SQL 
 python3 -m experiments.exp_concurrent_merge       # 多标注员并发分支合并冲突 FAIL/SKIP/ACCEPT
 python3 -m experiments.exp_sft_curation           # SFT 策展：去重/过滤/去污染原地 SQL + 行级溯源
 python3 -m experiments.exp_rlhf_preference        # RLHF：SQL 算标注共识 + cherry-pick 改判 + pin 快照
+python3 -m experiments.exp_feature_store          # Feature Store：PIT as-of join + git4data 特征版本化（对比 Tecton）
 ```
 **会看到**：每个脚本对应一个真实诉求，并打印关键数字（详见[第 5 节](#5-做了哪些测试实验全表)）。
 
@@ -196,6 +197,7 @@ python3 -m experiments.exp_agent_evolution
 | `exp_concurrent_merge.py` | 行级合并冲突 | FAIL 检出 pk 冲突，SKIP/ACCEPT 各自裁决 | MatrixOne |
 | `exp_sft_curation.py` | SFT 策展 | 原地 SQL 8000→3164；DIFF 溯源 DELETED=4836；410ms | MatrixOne |
 | `exp_rlhf_preference.py` | RLHF 偏好数据 | SQL 共识（一致 2174/争议 826）；cherry-pick 改判；pin 快照 | MatrixOne |
+| `exp_feature_store.py` | **Feature Store**（对比 Tecton） | 无泄漏 PIT as-of join；HTAP 单存储 online+offline；git4data 版本化特征值（7d→14d 改 120 行 DIFF、快照=特征发布、PITR） | MatrixOne |
 | `exp_write_audit_publish.py` | WAP 模式 | 审计抓出 15/15/10，生产零暴露；修复后原子 MERGE 发布 1300 | MatrixOne |
 | `exp_continuous_annotation.py` | 持续标注 + 复现 | DIFF 两次训练 INSERTED 300/UPDATED 80；PITR 还原未打标的"周三3点" | MatrixOne |
 | `exp_stream_versioning.py` | 实时流版本化 | 500 事件=500 事务；PITR 重建到任意微秒（201/381 精确） | MatrixOne |
@@ -266,7 +268,7 @@ common/          共享：合成数据流(data_stream) + 增量模型(model, SGD
 config.py        领域常量 + 从 .mo.cnf 读 MatrixOne 连接
 matrixone/       git4data 实现：mo_client / git4data(原语封装) / repo / run_demo
 lakefs_demo/     lakeFS 实现：lk_config / start_lakefs.sh / run_demo
-experiments/     15 个可独立重跑、自清理的实验脚本（见第 5 节）
+experiments/     16 个可独立重跑、自清理的实验脚本（见第 5 节）
 COMPARISON.md    深度报告（§1-12：能力对比/ML场景/性能基准/集成/平台架构/Agent进化）
 README.md        本教程
 ```
