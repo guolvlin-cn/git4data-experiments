@@ -123,6 +123,11 @@
 - **测试点**：用**真实 `opentelemetry.sdk` + 自定义 `SpanExporter`** 把 agent 运行的 span 树（`invoke_agent` 根 + `chat {model}`/`execute_tool` 子 span，`gen_ai.request.model`/`gen_ai.usage.*_tokens` 等属性）写入 MatrixOne；SQL 重建 trace 树、聚合 token/延迟、按 `status='ERROR'` 找失败 span；再叠加 git4data：快照=「某 agent 版本的 trace」、`DATA BRANCH DIFF` 比新增 span、SQL 做版本 A/B。
 - **能力价值**：标准 OTel `SpanExporter` 即可把 `gen_ai.*` span 映射进 SQL 表（生产里就是 OTel Collector 的一个 exporter）；trace 树/聚合/错误检索都是普通 SQL；git4data 让**同一存储既是可观测性后端、又是可版本化的 agent 迭代基质**（snapshot per 版本、行级 DIFF、跨版本 cost/error A/B：实测 v1 gpt-4o 1025 tok/2 err vs v2 gpt-4o-mini 962/1）。对照 ClickHouse 式纯 trace 存储，多了「版本化 + 行级 diff/merge」。
 
+### `agent_otel/`（包，`python -m agent_otel.run`）— 真实 agent 接入
+- **设计理由**：上面 `exp_otel_agent_trace` 的 span 是模拟生成的；这里要一个**真正会跑的 agent**（真实多步工具调用循环），验证「真实 agent → OTel → MatrixOne」整条链路。
+- **测试点**：真实 agent loop（`invoke_agent`→反复 `chat`/`execute_tool`→final）；工具 `calculator`/`kb_lookup` **真实执行**；LLM **可插拔**（`ANTHROPIC_API_KEY`/`OPENAI_API_KEY` 走真实 Claude/OpenAI tool-use，否则确定性本地规划器）；真实 OTel `TracerProvider`+自定义 `SpanExporter`→MatrixOne；再用 SQL 重建 trace 树/聚合 token/工具频次/error span + git4data 快照。
+- **能力价值**：证明 MatrixOne 能直接接**真实 agent 运行时**产生的 OTel trace（不是手工造的 span）：实测 agent 真算出 `47*19=893`、`法国人口×2=134000000`、`Hamlet→Shakespeare`、`10%光速=29979.2`、`Atlantis→工具报错`，24 span 入库后全程 SQL 可观测；同一存储再叠加 git4data 版本化。生产形态 = agent SDK→OTLP→OTel Collector(带 MatrixOne exporter)，本包把那个 exporter 内联了。
+
 ---
 
 ## 一句话总览：MatrixOne git4data 的能力价值落在四处

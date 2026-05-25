@@ -677,3 +677,11 @@ SDK（`TracerProvider` + `SimpleSpanProcessor` + 该 exporter）模拟 16 次 ag
   trace 既可观测、又可版本演化。
 - 边界：MatrixOne 不是 APM/trace UI 产品，没有 Jaeger/Tempo/Grafana 那套可视化与采样/告警生态；
   它提供的是「**SQL 可查 + git4data 可版本化的 trace 存储后端**」。
+
+> **真实 agent 接入（`agent_otel/`）**：`exp_otel_agent_trace` 的 span 是模拟的；`agent_otel/`
+> 则是一个**真正会跑的 agent**——真实多步工具调用循环（`calculator`/`kb_lookup` 真实执行）+
+> 真实 OTel instrumentation，span 经真实 `SpanExporter` 落 MatrixOne。LLM 可插拔（有
+> `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` 走真实 Claude/OpenAI tool-use，否则本地确定性规划器）。
+> 实测：agent 真算出 47*19=893、法国人口×2=134000000、Hamlet→Shakespeare、10%光速=29979.2、
+> Atlantis→工具报错(error span)；24 个真实 span 入库，全程 SQL 可观测 + git4data 快照。
+> `python -m agent_otel.run`。
