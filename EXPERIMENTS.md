@@ -142,6 +142,11 @@
 - **测试点**：DBOS 式引擎——`wf_exec`+`wf_step` 表；**每步的业务副作用与 checkpoint 同一 ACID 事务提交**；同 wf_id 重入时已完成步靠主键跳过（exactly-once）；retry 带 attempts；`recoverable()`=SQL 查 RUNNING；执行日志 SQL 可观测。订单工作流在 charge 后崩溃 → 重入恢复。
 - **能力价值**：实测——崩溃后重入，reserve/charge **skipped**、inventory 仍 9、payments 仍 1、status COMPLETED → **副作用恰好一次**（EXACTLY-ONCE: True）；retry 第 2 次成功、attempts=2。**这是与 trace 监控相反的工作负载**：需要 ACID 事务 + 持久可查状态 + 主键幂等，正是数据库/ MatrixOne 的强项。DBOS 模型 MatrixOne 完全能担；Temporal 的 timers/signals/replay 等需上层引擎。git4data 可对执行日志快照/版本化做可审计回放。
 
+### `durable_exec/framework.py` + `app.py`（`python -m durable_exec.app`）— 拼成一个 mini-DBOS
+- **设计理由**：把「持久 exactly-once 步骤 + durable timer(CREATE TASK) + durable queue(FOR UPDATE)」拼成**一个装饰器框架**，验证「DBOS-on-MatrixOne」端到端可行。
+- **测试点**：`@workflow`/`@transaction`(业务写+checkpoint 同事务)/`@step`(外部副作用)、`dbos.sleep()` durable timer、`enqueue()`+`worker()` 队列派发、崩溃 requeue 重入跳过已完成步。3 订单 + 2 并发 worker，order-2 在 charge 后崩溃。
+- **能力价值**：实测 **ALL EXACTLY-ONCE & COMPLETE: True**——payments=3（崩溃的也只扣一次）/inventory=96/emails=3/timers FIRED=3；崩溃工作流 attempt 2 跳过已 checkpoint 的 reserve/charge。⇒ **~300 行就在 MatrixOne 上覆盖了 DBOS 核心**（编程模型+持久步骤+timer+queue+恢复），`@transaction` 与业务写同库同事务，还能叠 git4data 时间旅行。仍缺确定性重放/signals/child-wf/版本化/可视化/多语言 SDK——见 COMPARISON §17/§17.1。
+
 ### `durable_exec/scheduling.py`（`python -m durable_exec.scheduling`）— 用 CREATE TASK + FOR UPDATE 自建 durable timer/queue
 - **设计理由**：durable execution 还需要两大原语——**定时器**（睡到某刻再继续）和**队列**（持久、恰好处理一次）。验证它们能否用 MatrixOne 内置 `CREATE TASK`（v3.0.11 实测可用）+ `FOR UPDATE` 行锁**在库内原生自建**，无需外部调度器/broker。
 - **测试点**：① durable timer——`timers` 表 + `CREATE TASK` cron 轮询 `UPDATE … FIRED WHERE due_at<=now()`；② durable queue——2 个并发线程 worker 用 `SELECT … FOR UPDATE` claim（`SKIP LOCKED` 不支持→锁上串行）+ `UPDATE` 标 DONE。
