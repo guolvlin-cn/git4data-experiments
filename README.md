@@ -1,4 +1,4 @@
-# git4data 实验教程：用 17 个实验学会并评估 MatrixOne 的「数据版本控制」能力
+# git4data 实验教程：用 18 个实验学会并评估 MatrixOne 的「数据版本控制」能力
 
 > 一份**动手教程**：通过一组**可独立重跑、自清理**的实验，系统学习 MatrixOne
 > **git4data**（快照 / 时间旅行 / 克隆 / 回滚 / PITR / `DATA BRANCH` 分支·diff·merge·
@@ -149,9 +149,12 @@ python3 -m experiments.exp_branch_advanced    # schema 演进会打断 diff/merg
 python3 -m experiments.exp_stage_datalink     # datalink 编目 OSS 文件；快照只版本"引用"非"字节"；DIFF OUTPUT FILE 导出 SQL 补丁（需 OSS）
 python3 -m experiments.exp_multimodal_catalog # 多模态：datalink + vecf32 近重检测，目录侧版本化（需 OSS）
 python3 -m experiments.exp_bench_curation     # 正面基准：MatrixOne 原地 SQL vs lakeFS+DuckDB（需 OSS+duckdb）
+python3 -m experiments.exp_clickhouse_vs_matrixone  # 对比 ClickHouse 作 trace 后端：摄入/OLAP vs 版本化/可变更/联接（需 chdb）
 ```
 **会看到**：git4data 在**非结构化字节**上只版本「引用」不版本「字节」；性能基准上 lakeFS+DuckDB
-裸吞吐反而更快——**优势在集成度而非速度**。这两条决定了下一课的「组合」思路。
+裸吞吐反而更快——**优势在集成度而非速度**。作 OTel trace 后端时 **ClickHouse 在摄入/OLAP 函数/
+TTL/生态上完胜**，MatrixOne 的差异点是同一份 trace **可版本化(snapshot/DIFF/PITR) + 行级可变更
+(标注/打分) + 可联接**到数据集/模型表。**诚实地承认边界**正是这几课的目的。
 
 ### 第 5 课 — 组合使用：lakeFS + MatrixOne
 ```bash
@@ -232,6 +235,7 @@ OPENAI_API_KEY=sk-... python3 -m agent_otel.run     # 真实 OpenAI
 | `exp_multimodal_pipeline.py` | **端到端 capstone**：多模态版本化+打标+训练+持续迭代 | 4 轮：落 lakeFS→编目打标→训练→注册；新数据/清洗标签/重导出字节各自版本化；m2 精确复现；字节级血缘 | lakeFS+MatrixOne+OSS |
 | `exp_agent_evolution.py` | 非 ML：Agent 进化 | branch 进化 50%→100%；RESTORE 回滚；冲突裁决；cherry-pick 技能 | MatrixOne |
 | `exp_otel_agent_trace.py` | OTel agent trace 后端 | 真实 OTel SpanExporter 写入 gen_ai.* span；SQL 重建 trace 树/聚合/找 error；快照=agent 版本，DIFF + SQL A/B（v1 vs v2 token/err） | MatrixOne+otel-sdk |
+| `exp_clickhouse_vs_matrixone.py` | **对比 ClickHouse**（trace 后端） | 同份 span 两边跑：摄入 28ms vs 112ms(远程)、查询 44 vs 52ms；CH 有 quantile、MO 无；MO 独有 snapshot/DIFF/PITR + 行级 UPDATE 标注 + JOIN 模型注册表算成本 | MatrixOne+chdb |
 
 ---
 
@@ -293,7 +297,7 @@ config.py        领域常量 + 从 .mo.cnf 读 MatrixOne 连接
 matrixone/       git4data 实现：mo_client / git4data(原语封装) / repo / run_demo
 lakefs_demo/     lakeFS 实现：lk_config / start_lakefs.sh / run_demo
 agent_otel/      真实 agent 接入：tools / llm(可插拔) / agent(OTel 埋点) / exporter(→MatrixOne) / run
-experiments/     17 个可独立重跑、自清理的实验脚本（见第 5 节）
+experiments/     18 个可独立重跑、自清理的实验脚本（见第 5 节）
 COMPARISON.md    深度报告（§1-12：能力对比/ML场景/性能基准/集成/平台架构/Agent进化）
 README.md        本教程
 ```

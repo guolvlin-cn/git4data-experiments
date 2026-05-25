@@ -685,3 +685,36 @@ SDK（`TracerProvider` + `SimpleSpanProcessor` + 该 exporter）模拟 16 次 ag
 > 实测：agent 真算出 47*19=893、法国人口×2=134000000、Hamlet→Shakespeare、10%光速=29979.2、
 > Atlantis→工具报错(error span)；24 个真实 span 入库，全程 SQL 可观测 + git4data 快照。
 > `python -m agent_otel.run`。
+
+---
+
+## 15. 对比 ClickHouse 作 agent/OTel trace 后端（`exp_clickhouse_vs_matrixone.py`，实测）
+
+**背景**：ClickHouse 是 OTel trace 存储的**事实标准**（OTel Collector 一等 exporter；SigNoz/
+Uptrace 基于它）。所以 agent-trace 场景最该对比的基线是 ClickHouse，而非 lakeFS。把同一份
+OTel span 灌进两边（ClickHouse 走进程内 chdb，MatrixOne 远程云），比这个场景的关键点。
+
+**实测（1000 spans，同一份数据）**：
+
+| 关键点 | ClickHouse | MatrixOne |
+|---|---|---|
+| 摄入吞吐 | **28 ms**（MergeTree 专为海量 append） | 112 ms（远程，网络往返） |
+| 可观测性查询 | **44 ms** | 52 ms（远程） |
+| OLAP 函数 | **有** `quantile()/uniq()` 等（p95=68.42ms） | 无原生 quantile（用 MAX 近似） |
+| error 计数 | 72 | 72（同数据同答案） |
+| 原生 TTL 保留 | **★ 有** | 靠快照/PITR 或手动 |
+| 可观测生态(OTel/SigNoz/Grafana) | **★ 事实标准** | 自建 |
+| **版本化** snapshot/DIFF/PITR | ✗（无 git-for-data） | **★ 有**：`DATA BRANCH DIFF` v2 vs v1=INSERTED 1000（行级） |
+| **行级可变更**（给 span 打 eval 标签/修正） | 弱：`ALTER…UPDATE` 是后台 mutation（重写 parts） | **★ 事务级 `UPDATE`**：标 144 个 error span，26ms |
+| **JOIN**（关联模型注册表/数据集/特征） | 受限/笨拙（专用 OLAP） | **★ 通用 SQL**：spans ⋈ model_registry 算每模型成本 |
+
+**诚实结论**：
+- **纯 trace 存储 / 海量实时监控：ClickHouse 完胜**——摄入、OLAP 扫描与函数、TTL、生态都是它的主场。
+- **MatrixOne 的差异点（针对「agent 迭代」而非「监控」）**：同一份 trace 存储**同时**是
+  ① git4data 版本化的（snapshot per agent/评测版本、行级 DIFF、PITR）、② 行级可变更的
+  （事务级给 span 打人工评测标签/修正）、③ 可 JOIN 到版本化数据集/特征/模型表的统一 SQL 存储。
+  即「可观测性后端 + 可版本化/可标注/可联接的 agent 迭代基质」三合一。
+- **务实组合**：ClickHouse 扛海量实时监控 trace；MatrixOne 存「被选出来要做评测/迭代/标注、并
+  要和训练数据关联」的那部分 trace 做版本化治理。
+- 注意：本测 MatrixOne 为远程云实例，网络延迟抬高了它的 ms；同机部署会缩小摄入/查询差距，但
+  ClickHouse 作为专用 OLAP 引擎在裸吞吐上本就该赢——所以重点看**能力轴**而非**速度轴**。

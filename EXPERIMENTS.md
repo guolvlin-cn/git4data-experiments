@@ -95,6 +95,11 @@
 - **测试点**：同一份 SFT 策展，两种架构端到端耗时（warmup + 中位数）。
 - **能力价值（诚实）**：裸吞吐 **lakeFS+DuckDB 反而更快**——所以 MatrixOne 的价值**不是算得快**，而是「**存+版本+计算+服务一处、行级语义、可复现、少运维**」。这条让选型理由站得住、不虚。
 
+### `exp_clickhouse_vs_matrixone.py` — 对比 ClickHouse 作 agent/OTel trace 后端
+- **设计理由**：ClickHouse 是 OTel trace 存储的事实标准（OTel Collector 一等 exporter、SigNoz/Uptrace 都用它），所以是 agent-trace 场景最该对比的基线。看 MatrixOne 在这个场景的关键点上有没有优势。
+- **测试点**：同一份 OTel span 两边都建表/摄入/跑相同可观测性查询（按模型聚合 token、error 数、延迟）；再对照关键能力点——版本化(snapshot/DIFF/PITR)、行级可变更(给 span 打 eval 标签)、JOIN 到模型注册表。ClickHouse 用进程内 chdb，MatrixOne 远程（带网络延迟说明）。
+- **能力价值（诚实）**：**ClickHouse 完胜纯 trace 存储**——摄入吞吐(28ms vs 112ms 远程)、OLAP 函数(有 `quantile`，MO 无)、原生 TTL、成熟生态。**MatrixOne 在 agent-迭代角度的差异点**：同一份 trace 还能 **git4data 版本化**（snapshot per agent 版本、`DATA BRANCH DIFF` v2 vs v1=1000、PITR）、**行级可变更**（普通 `UPDATE` 给 144 个 error span 打标，26ms 事务级；ClickHouse 是后台 mutation 重操作）、**可 JOIN**（spans ⋈ model_registry 算每模型成本）。结论：高吞吐实时监控用 ClickHouse；要把 trace 当**可版本化/可标注/可联接训练数据**的迭代资产，MatrixOne 有独特价值——务实做法是两者组合。
+
 ---
 
 ## E. 集成与端到端
